@@ -1,0 +1,131 @@
+#Reproducible Data Week2 Project
+
+This is the RMarkdown file for Week2's project
+
+We first read the data from the zip file.
+
+```{r Read_Data}
+DataFrame <- read.csv(unz("activity.zip", "activity.csv"),  header=T, stringsAsFactors = F , na.strings = "NA")
+
+```
+
+Getting rid of al NAs
+
+```{r}
+DataFrame<-DataFrame[complete.cases(DataFrame),]
+```
+
+We now convert the Date column into a suitable format in order to have proper track of the information.
+
+```{r Set_Dates}
+DataFrame$date<-as.Date(as.character(DataFrame$date), format = '%Y-%m-%d')
+```
+
+To make sure the dates are in indeed in the **Date** format we show the str properties.
+
+```{r echo=F}
+str(DataFrame)
+``` 
+
+Histogram for the total steps taken per day.
+```{r histogram_steps/days}
+steps_day<-aggregate(steps ~ date, data=DataFrame, sum)
+hist(steps_day$steps, xlab = 'Steps taken', main= 'Histogram for steps taken per day', col="blue" , breaks = 15 )
+```
+
+The following shows the mean and median for steps each day.Note: the mean was taken removing zero valus of steps, else it would hav showed a permanent mean value of 0.
+```{r }
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+days_group<-group_by(DataFrame, date)
+sum_days_grp<-summarise(days_group,Means= mean(steps), Median= median(steps[steps>0]))
+pl_mean<- with(sum_days_grp, qplot(date, Means, ))
+pl_median<- with(sum_days_grp, qplot(date,Median))
+grid.arrange(pl_mean, pl_median, nrow = 2)               
+``` 
+
+Plotting the average steps per day
+```{r}
+Avg_steps_day<-aggregate(steps ~ date, data=DataFrame, mean)
+plot(Avg_steps_day$date, Avg_steps_day$steps, xlab="Dates", ylab="Average teps taken", main="Amount of steps taken through time", type='l')
+
+```
+
+Time interval which averages the most steps taken.
+```{r}
+interval_average<-aggregate(steps~interval, data=DataFrame, mean)
+interval_average[max(interval_average$steps)==interval_average$steps,]  
+```
+
+Read again the info and clean it.
+
+```{r}
+DataFrame_wNA <- read.csv(unz("activity.zip", "activity.csv"),  header=T, stringsAsFactors = F , na.strings = "NA")
+DataFrame_wNA$date<-as.Date(as.character(DataFrame_wNA$date), format = '%Y-%m-%d')
+```
+
+Calculate amount of NAs in steps input
+```{r}
+sum(is.na(DataFrame_wNA$steps))
+
+```
+
+
+Replace NAs with mean per interval. By day would have been the best but some of the days in the input dataframe have no information at all, thus the best option is to use interval input.
+
+```{r}
+fill_in <- function(x,y)
+     {
+     #browser()
+          for (i in 1:nrow(x)) 
+          {
+               if (is.na(x[i,1]))
+               {
+                   x[i,1]<-y[y[,1] == (x[i,3]),2] 
+               }
+          }
+     x
+     }
+Full_Data<-fill_in(x=DataFrame_wNA,interval_average)
+```
+
+Histogram from total amount of steps per day with NAs replaced by mean of interval.
+
+
+Creation of FullDF_TotStp which is a summary for all input needed for plotting further questions.
+
+```{r}
+FullDF_TotStp<-Full_Data %>% group_by(date) %>% summarise(Sum= sum(steps), Mean= mean(steps), Median=median(steps[steps>0])) %>% print
+
+
+```
+
+Histogram for values in all steps' rows
+
+```{r}
+hist(FullDF_TotStp$Sum, col="red", xlab="Total Steps", main= "Histogram for total steps per day", breaks=15)
+
+```
+
+Plotting for mean and median values of steps per day replacing NAs.
+
+```{r}
+full_pl_mean<- with(FullDF_TotStp , qplot(date, Mean ))
+full_pl_median<- with(FullDF_TotStp, qplot(date,Median))
+grid.arrange(full_pl_mean, full_pl_median, nrow = 2)
+
+```
+
+Add a factor variable to the DataFrame in order to identify average steps per intervals in weekdays and weekends.
+
+```{r}
+library(chron)
+library(lattice)
+Full_Data<-mutate(Full_Data, Weekdays= is.weekend(Full_Data$date))
+Full_Data$Weekdays[Full_Data$Weekdays == "FALSE"] <- "Weekday"
+Full_Data$Weekdays[Full_Data$Weekdays=="TRUE"] <- "Weekend"
+
+with(aggregate(steps~interval+Weekdays,data = Full_Data, mean), xyplot(steps~interval|Weekdays, type="l", layout=c(1,2)))
+
+```
